@@ -691,7 +691,7 @@
 
     <!-- Header / Navigation -->
     <header>
-        <h1>
+        <h1 onclick="location.href='index.html'" style="cursor: pointer;">
             <i class="fas fa-university"></i> UCSC Booking
         </h1>
         <div class="nav-container">
@@ -844,6 +844,55 @@
                     </table>
                 </div>
             </div>
+
+            <div class="mt-2">
+                <h3>Manage Admins</h3>
+                <div class="form-container" style="max-width: 100%; margin: 1rem 0;">
+                    <form id="addAdminForm">
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                            <div class="form-group">
+                                <label>Full Name</label>
+                                <input type="text" id="newAdminName" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Admin ID</label>
+                                <input type="text" id="newAdminID" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Email</label>
+                                <input type="email" id="newAdminEmail" required placeholder="admin@ucsc.lk">
+                            </div>
+                            <div class="form-group">
+                                <label>Role</label>
+                                <select id="newAdminRole" required>
+                                    <option value="System Admin">System Admin</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Password</label>
+                                <input type="password" id="newAdminPassword" required>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn" style="width: auto; padding: 10px 30px;">Add Admin</button>
+                    </form>
+                </div>
+                <div class="table-container">
+                    <table id="adminManagementTable">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>ID</th>
+                                <th>Email</th>
+                                <th>Role</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="adminManagementBody">
+                            <!-- JS will populate -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </section>
 
         <!-- Lecturer Section -->
@@ -881,6 +930,10 @@
                     <div class="form-group">
                         <label>Email</label>
                         <input type="email" id="lecEmail" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Phone Number</label>
+                        <input type="tel" id="lecPhone" required placeholder="0712345678">
                     </div>
                     <div class="form-group">
                         <label>Password</label>
@@ -960,6 +1013,10 @@
                     <div class="form-group">
                         <label>Email</label>
                         <input type="email" id="stuEmail" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Phone Number</label>
+                        <input type="tel" id="stuPhone" required placeholder="0712345678">
                     </div>
                     <div class="form-group">
                         <label>Password</label>
@@ -1485,6 +1542,7 @@
 
         let currentUser = JSON.parse(localStorage.getItem('currentUser')) || null;
         let users = JSON.parse(localStorage.getItem('users')) || [];
+        let admins = JSON.parse(localStorage.getItem('admins')) || [];
         let bookings = JSON.parse(localStorage.getItem('bookings')) || [];
         let messages = JSON.parse(localStorage.getItem('messages')) || [];
 
@@ -1504,7 +1562,7 @@
 
         function goToHome() {
             if (currentUser) {
-                if (currentUser.role === 'admin') showPage('admin-dashboard');
+                if (currentUser.role === 'admin' || currentUser.role === 'System Admin') showPage('admin-dashboard');
                 else showPage('booking-page');
             } else {
                 showPage('landing');
@@ -1515,11 +1573,11 @@
             const navLinks = document.getElementById('nav-links');
             navLinks.innerHTML = '';
 
-            // Always show Home link to the landing page
-            navLinks.innerHTML += `<li><a onclick="showPage('landing')">Home</a></li>`;
+            // Always show Home link to the landing page with refresh
+            navLinks.innerHTML += `<li><a onclick="location.href='index.html'">Home</a></li>`;
 
             if (currentUser) {
-                if (currentUser.role !== 'admin') {
+                if (currentUser.role !== 'admin' && currentUser.role !== 'System Admin') {
                     const pendingCount = messages.filter(m => m.userEmail === currentUser.email && m.responseStatus === 'Pending').length;
                     navLinks.innerHTML += `<li><a onclick="showPage('messages-page')">Messages ${pendingCount > 0 ? `<span class="badge badge-pending" style="padding: 2px 6px;">${pendingCount}</span>` : ''}</a></li>`;
                 }
@@ -1532,28 +1590,72 @@
         function logout() {
             localStorage.removeItem('currentUser');
             currentUser = null;
-            showPage('landing');
+            location.href = 'index.html';
         }
 
-        // --- Authentication (Keep existing) ---
+        // --- Email Simulation ---
+        function simulateEmail(to, subject, body) {
+            console.log(`%c[SIMULATED EMAIL SENT] TO: ${to}\nSUBJECT: ${subject}\nBODY: ${body}`, 'background: #e3f2fd; color: #0d47a1; padding: 5px; border-radius: 3px; font-weight: bold;');
+            // Optional: You could show a small toast that says "Email sent to..."
+            const emailToast = document.createElement('div');
+            emailToast.className = 'notification-toast';
+            emailToast.style.background = '#2e7d32'; // Green for email success
+            emailToast.innerHTML = `
+                <div class="notification-content">
+                    <i class="fas fa-envelope-open-text"></i>
+                    <div>
+                        <strong>Email Sent Successfully</strong>
+                        <span style="font-size: 0.8rem; display:block;">To: ${to}</span>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(emailToast);
+            setTimeout(() => {
+                emailToast.classList.add('fade-out');
+                setTimeout(() => emailToast.remove(), 500);
+            }, 4000);
+        }
+
+        // --- Authentication ---
         document.getElementById('adminLoginForm').addEventListener('submit', (e) => {
             e.preventDefault();
             const email = document.getElementById('adminEmail').value;
             const password = document.getElementById('adminPassword').value;
+            
+            // Check hardcoded main admin
             if (email === 'admin@ucsc.lk' && password === 'admin123') {
                 currentUser = { name: 'Admin', role: 'admin', email: email };
                 localStorage.setItem('currentUser', JSON.stringify(currentUser));
                 showPage('admin-dashboard');
                 showStoredNotifications(email);
-            } else alert('Invalid Admin Credentials');
+                return;
+            }
+
+            // Check added admins
+            const foundAdmin = admins.find(a => a.email === email && a.password === password);
+            if (foundAdmin) {
+                currentUser = foundAdmin;
+                localStorage.setItem('currentUser', JSON.stringify(currentUser));
+                showPage('admin-dashboard');
+                showStoredNotifications(email);
+            } else {
+                alert('Invalid Admin Credentials');
+            }
         });
 
         document.getElementById('lecturerSignupForm').addEventListener('submit', (e) => {
             e.preventDefault();
-            const name = document.getElementById('lecName').value, id = document.getElementById('lecID').value, email = document.getElementById('lecEmail').value, pass = document.getElementById('lecPassword').value, confirm = document.getElementById('lecConfirmPassword').value;
+            const name = document.getElementById('lecName').value;
+            const id = document.getElementById('lecID').value;
+            const email = document.getElementById('lecEmail').value;
+            const phone = document.getElementById('lecPhone').value;
+            const pass = document.getElementById('lecPassword').value;
+            const confirm = document.getElementById('lecConfirmPassword').value;
+            
             if (pass !== confirm) return alert('Passwords do not match');
             if (users.find(u => u.email === email)) return alert('Email already registered');
-            users.push({ name, id, email, password: pass, role: 'lecturer' });
+            
+            users.push({ name, id, email, phone, password: pass, role: 'lecturer' });
             localStorage.setItem('users', JSON.stringify(users));
             alert('Signup Successful! Please Login.');
             showPage('lecturer-login');
@@ -1573,10 +1675,18 @@
 
         document.getElementById('studentSignupForm').addEventListener('submit', (e) => {
             e.preventDefault();
-            const name = document.getElementById('stuName').value, id = document.getElementById('stuID').value, batch = document.getElementById('stuBatch').value, email = document.getElementById('stuEmail').value, pass = document.getElementById('stuPassword').value, confirm = document.getElementById('stuConfirmPassword').value;
+            const name = document.getElementById('stuName').value;
+            const id = document.getElementById('stuID').value;
+            const batch = document.getElementById('stuBatch').value;
+            const email = document.getElementById('stuEmail').value;
+            const phone = document.getElementById('stuPhone').value;
+            const pass = document.getElementById('stuPassword').value;
+            const confirm = document.getElementById('stuConfirmPassword').value;
+            
             if (pass !== confirm) return alert('Passwords do not match');
             if (users.find(u => u.email === email)) return alert('Email already registered');
-            users.push({ name, id, batch, email, password: pass, role: 'student' });
+            
+            users.push({ name, id, batch, email, phone, password: pass, role: 'student' });
             localStorage.setItem('users', JSON.stringify(users));
             alert('Signup Successful! Please Login.');
             showPage('student-login');
@@ -1750,7 +1860,7 @@
 
             if (conflict) return alert(type === 'Hall' ? 'This hall is already booked.' : 'This computer is already booked for the selected time. Please choose another computer or time slot.');
 
-            bookings.push({
+            const newBooking = {
                 id: Date.now(),
                 bookingType: type,
                 hallNumber: hallNum,
@@ -1758,6 +1868,7 @@
                 computerNumber: pcNum,
                 userName: currentUser.name,
                 userEmail: currentUser.email,
+                userPhone: currentUser.phone || '-',
                 userRole: currentUser.role,
                 date: date,
                 startTime: startTime,
@@ -1765,10 +1876,16 @@
                 purpose: document.getElementById('bookPurpose').value,
                 status: 'Pending',
                 cancelRequest: false
-            });
+            };
 
+            bookings.push(newBooking);
             localStorage.setItem('bookings', JSON.stringify(bookings));
-            alert('Booking Request Sent!');
+            
+            // Send Confirmation Email Simulation
+            const resName = type === 'Hall' ? `Hall ${hallNum}` : `${labName} (PC ${pcNum})`;
+            simulateEmail(currentUser.email, 'Booking Request Received', `Hi ${currentUser.name},\n\nYour request to book ${resName} on ${date} at ${startTime} has been received and is pending admin approval.`);
+
+            alert('Booking Request Sent! A confirmation email has been sent to ' + currentUser.email);
             cancelBooking();
             renderUserBookings();
             renderAllBookingsTable();
@@ -1971,7 +2088,54 @@
             const uBody = document.getElementById('adminUsersBody');
             uBody.innerHTML = '';
             users.forEach(u => uBody.innerHTML += `<tr><td>${u.name}</td><td>${u.id || '-'}</td><td>${u.email}</td><td>${u.role}</td></tr>`);
+
+            renderAdminManagementTable();
         }
+
+        function renderAdminManagementTable() {
+            const body = document.getElementById('adminManagementBody');
+            if (!body) return;
+            body.innerHTML = '';
+            admins.forEach((admin, index) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${admin.name}</td>
+                    <td>${admin.id}</td>
+                    <td>${admin.email}</td>
+                    <td>${admin.role}</td>
+                    <td>
+                        <button class="btn btn-outline" style="padding:2px 8px;font-size:0.8rem;border-color:red;color:red;" onclick="deleteAdmin(${index})">Delete</button>
+                    </td>
+                `;
+                body.appendChild(tr);
+            });
+        }
+
+        function deleteAdmin(index) {
+            if (confirm('Are you sure you want to delete this admin?')) {
+                admins.splice(index, 1);
+                localStorage.setItem('admins', JSON.stringify(admins));
+                renderAdminManagementTable();
+            }
+        }
+
+        document.getElementById('addAdminForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const name = document.getElementById('newAdminName').value;
+            const id = document.getElementById('newAdminID').value;
+            const email = document.getElementById('newAdminEmail').value;
+            const role = document.getElementById('newAdminRole').value;
+            const password = document.getElementById('newAdminPassword').value;
+
+            if (admins.find(a => a.email === email) || email === 'admin@ucsc.lk') {
+                return alert('This email is already registered as an admin.');
+            }
+
+            admins.push({ name, id, email, role, password });
+            localStorage.setItem('admins', JSON.stringify(admins));
+            alert('New Admin Added Successfully!');
+            location.reload();
+        });
 
         function openChangeRequest(bookingId) {
             const booking = bookings.find(b => b.id === bookingId);
@@ -2182,8 +2346,17 @@
         function updateBookingStatus(id, status) {
             const idx = bookings.findIndex(b => b.id === id);
             if (idx !== -1) { 
-                bookings[idx].status = status; 
+                const b = bookings[idx];
+                b.status = status; 
                 localStorage.setItem('bookings', JSON.stringify(bookings)); 
+                
+                // Email Simulation for Admin Action
+                const resName = b.bookingType === 'Hall' ? `Hall ${b.hallNumber}` : `${b.labName} (PC ${b.computerNumber})`;
+                simulateEmail(b.userEmail, `Booking ${status}`, `Hi ${b.userName},\n\nYour booking for ${resName} on ${b.date} has been ${status.toLowerCase()} by the admin.`);
+                
+                // Also create an in-app notification
+                createNotification(b.userEmail, `Your booking for ${resName} on ${b.date} has been ${status.toLowerCase()}.`);
+
                 renderAdminDashboard(); 
                 renderAllBookingsTable(); 
             }
@@ -2214,11 +2387,10 @@
         
         window.onload = () => { 
             updateThemeIcon(savedTheme);
+            showPage('landing'); 
             if (currentUser) {
-                goToHome(); 
                 showStoredNotifications(currentUser.email);
             }
-            else showPage('landing'); 
         };
     </script>
 </body>
